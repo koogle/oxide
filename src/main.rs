@@ -1,0 +1,289 @@
+use std::ops::Add;
+use std::ops::Mul;
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::collections::HashSet;
+use std::time::SystemTime;
+use std::fmt::Display;
+use std::sync::Arc;
+use rand::Rng;
+
+// Value class
+
+enum Operation {
+    ADD,
+    MUL,
+    RELU,
+    NONE
+}
+
+impl Default for Operation {
+    fn default() -> Operation {
+        Operation::NONE
+    }
+}
+
+#[derive(Eq, Hash, PartialEq, Copy, Clone)]
+struct Identifier {
+    value: u32,
+}
+
+static mut COUNTER: u32 = 0;
+
+impl Default for Identifier {
+    fn default() -> Identifier  {
+        unsafe {
+            COUNTER += 1;
+            return Identifier  {
+                value: COUNTER,
+            }
+        }
+    }
+}
+
+
+type ValueRef = Rc<RefCell<Value>>;
+
+#[derive(Default)]
+struct Value {
+    value: f64,
+    grad: f64,
+    needs_grad: bool,
+    id: Identifier
+    operation: Operation,
+    previous_nodes: Vec<ValueRef>,
+}
+
+impl Value {
+    fn random() -> Value {
+        return Value::from_value(rand::thread_rng().gen_range(0.0..1.0));
+    }
+
+    fn from_value(value: f64) -> Value {
+        let mut new_value = Value::default();
+        new_value.value = value;
+        return new_value;
+    }
+
+    fn backward_recursive(&self, mut pointers: Vec<ValueRef>, mut visited: HashSet<Identifier>) -> (Vec<ValueRef>, HashSet<Identifier>) {
+        if !visited.contains(&self.id) {
+            visited.insert(self.id); 
+            for node in &self.previous_nodes {
+                (pointers, visited) = node.borrow_mut().backward_recursive(pointers, visited);
+                pointers.push(Rc::clone(node));
+            }
+        }
+        return (pointers, visited)
+    }
+
+
+    fn backward(&self) {
+        // implement toplogical search
+        let (mut pointers, _) = self.backward_recursive(Vec::new(), HashSet::new());
+        self.update_previous();
+        while pointers.len() > 0 {
+            let node = pointers.pop();
+            
+            match node {
+                Some(resolved) => {
+                    resolved.borrow_mut().update_previous();
+                },
+                None => {}
+            }
+        }
+    }
+
+    fn relu(self) -> (Value, ValueRef) {
+        let value = match self.value > 0.0 {
+            true => self.value,
+            false => 0.0,
+        };
+        let self_ref = Rc::new(RefCell::new(self));
+        let output = Value {
+            value: value,
+            needs_grad: true,
+            operation: Operation::RELU,
+            grad: 0.0,
+            previous_nodes: vec![Rc::clone(&self_ref)],
+            id: Identifier::default()
+        };
+        return (output, self_ref);
+    }
+    
+    fn update_previous(&self) {
+        match self.operation {
+            Operation::ADD => {        
+                let mut first = self.previous_nodes[0].borrow_mut();
+                let mut second = self.previous_nodes[1].borrow_mut();
+                if first.needs_grad {
+                    first.grad += self.grad;
+                }
+                if second.needs_grad {
+                    second.grad += self.grad;
+                }
+            },
+            Operation::MUL => {
+                let mut first = self.previous_nodes[0].borrow_mut();
+                let mut second = self.previous_nodes[1].borrow_mut();
+                if first.needs_grad {
+                    first.grad += second.value * self.grad;
+                }
+                if second.needs_grad {
+                    second.grad += first.value * self.grad;
+                }
+            },
+            Operation::RELU => {
+                let mut first = self.previous_nodes[0].borrow_mut();
+                if first.needs_grad {
+                    first.grad = match first.value > 0.0 {
+                        true => self.grad,
+                        false => 0.0
+                    };
+                }
+            },
+            Operation::NONE => {}
+        }
+    }
+}
+
+fn combine_with_refs(left: Value, right: Value, new_value: f64, operation: Operation) -> (Value, ValueRef, ValueRef) {
+    let l_ref = Rc::new(RefCell::new(left));
+    let r_ref = Rc::new(RefCell::new(right));
+
+    let output = Value {
+        value: new_value,
+        needs_grad: true,
+        operation,
+        grad: 0.0,
+        previous_nodes: vec![Rc::clone(&l_ref), Rc::clone(&r_ref)],
+        id: Identifier::default()
+    };
+    return (output, l_ref, r_ref);
+}
+
+impl Add for Value {
+    type Output = (Value, ValueRef, ValueRef);
+
+    fn add(self, other: Value) -> (Value, ValueRef, ValueRef) {
+        let new_value = self.value + other.value;
+        return combine_with_refs(self, other, new_value, Operation::ADD);
+    }
+}
+
+impl Add<f64> for Value {
+    type Output = (Value, ValueRef);
+
+    fn add(self, other: f64) -> (Value, ValueRef) {
+        let new_value = self.value + other;
+        let (out, l_ref, _) =  combine_with_refs(self, Value::from_value(other), new_value, Operation::ADD); 
+        return (out, l_ref);
+    }
+}
+
+impl Mul for Value {
+    type Output = (Value, ValueRef, ValueRef);
+
+    fn mul(self, other: Value) -> (Value, ValueRef, ValueRef) {
+        let new_value = self.value * other.value;
+        return combine_with_refs(self, other, new_value, Operation::MUL);
+    }
+}
+
+impl Mul<f64> for Value {
+    type Output = (Value, ValueRef);
+
+    fn mul(self, other: f64) -> (Value, ValueRef) {
+        let new_value = self.value * other;
+        let (out, l_ref, _) =  combine_with_refs(self, Value::from_value(other), new_value, Operation::MUL); 
+        return (out, l_ref);
+    }
+}
+
+
+
+// Neuron class
+
+
+struct Neuron {
+    parameters: Vec<ValueRef>,
+    inputs: Vec<ValueRef>,
+    output: ValueRef,
+}
+
+impl Neuron {
+    fn construct(size: usize) -> Neuron {
+        let mut inputs: Vec <ValueRef> = (1..size).map(|_x| Rc::new(RefCell::new(Value::from_value(0.0)))).collect();
+        let mut parameters: Vec<ValueRef> = (1..(size + 1)).map(|_x| Rc::new(RefCell::new(Value::random()))).collect();
+        
+        for parameter in parameters.iter() {
+            parameter.borrow_mut().needs_grad = true;
+        }
+
+        // This can be refactored to remove the need for initial value
+        let mut output: ValueRef = parameters[0].clone();
+        for index in 1..size {
+            let t = Rc::clone(&parameters[index]);
+
+            let (comb, _, _) = t.borrow() *  *inputs[index - 1].clone().borrow();
+            let (value, _, _) = *output.clone().borrow() + comb;
+            output = Rc::new(RefCell::new(value));
+        }
+
+        let (final_value, _) = (*output.borrow()).relu();
+
+
+        return Neuron {
+            parameters,
+            inputs,
+            output: Rc::new(RefCell::new(final_value)) 
+        }
+    }
+
+    fn zero_grad(self) {
+        for param in self.parameters {
+            param.borrow_mut().grad = 0.0;
+        }
+    }
+
+    fn set(self, inputs: Vec<f64>) {
+        assert_eq!(inputs.len(), self.inputs.len());
+
+        for (index, input) in inputs.iter().enumerate() {
+            self.inputs[index].borrow_mut().value = *input;
+        }
+    }
+}
+
+// Layers
+struct Layer {
+    neurons: Vec<Neuron>,
+}
+
+impl Layer {
+    fn new(n_neurons: usize, n_inputs: usize) -> Layer {
+        let neurons = (1..n_neurons).map(|_| Neuron::construct(n_inputs)).collect();
+        return Layer {
+            neurons,
+        }
+    }
+
+    fn zero_grad(self) {
+        for neuron in self.neurons {
+            neuron.zero_grad()
+        }
+    }
+}
+
+fn main() {
+    let mut a = Value::from_value(1.0);
+    a.needs_grad = true;
+    let b = 1.3;
+    let (c, a) = a * b;
+    let (mut e, c, d) = c + Value::from_value(2.0);
+    e.grad = 10.0;
+    e.backward();
+    // c.borrow().backward();
+    
+    // let test = ref_a.borrow();
+    println!("Hello, world! {}", a.borrow().grad);
+}
