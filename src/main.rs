@@ -11,7 +11,7 @@ enum Operation {
     ADD,
     MUL,
     RELU,
-    NONE
+    NONE,
 }
 
 impl Default for Operation {
@@ -94,6 +94,14 @@ impl Engine {
         };
         return Rc::new(RefCell::new(v));
     }
+
+    fn inv(node: &ValueRef) -> ValueRef {
+       return Engine::mul(node, &Value::from(-1.0)); 
+    }
+
+    fn pow(node: &ValueRef) -> ValueRef {
+        return Engine::mul(node, node); 
+    }
 }
 
 
@@ -120,7 +128,7 @@ impl Value {
     }
 
 
-    fn backward(&self) {
+    fn backward(&mut self) {
         // implement toplogical search
         let (mut pointers, _) = self.backward_recursive(VecDeque::new(), HashSet::new());
         self.update_previous();
@@ -169,32 +177,28 @@ impl Value {
         self.forward_step();
     }
 
-    fn update_previous(&self) {
+    fn update_previous(&mut self) {
         match self.operation {
-            Operation::ADD => {        
-                let mut first = self.previous_nodes[0].borrow_mut();
-                let mut second = self.previous_nodes[1].borrow_mut();
-                if first.needs_grad {
-                    first.grad += self.grad;
+            Operation::ADD => {
+                if self.needs_grad(0) {
+                    self.update_previous_node(0, self.grad);
                 }
-                if second.needs_grad {
-                    second.grad += self.grad;
+                if self.needs_grad(1) {
+                    self.update_previous_node(1, self.grad);
                 }
             },
             Operation::MUL => {
-                let mut first = self.previous_nodes[0].borrow_mut();
-                let mut second = self.previous_nodes[1].borrow_mut();
-                if first.needs_grad {
-                    first.grad += second.value * self.grad;
+                if self.needs_grad(0) {
+                    self.update_previous_node(0, self.get_previous_value(1) * self.grad);
                 }
-                if second.needs_grad {
-                    second.grad += first.value * self.grad;
+                if self.needs_grad(1) {
+                    self.update_previous_node(1, self.get_previous_value(0) * self.grad);
                 }
             },
             Operation::RELU => {
                 let mut first = self.previous_nodes[0].borrow_mut();
                 if first.needs_grad {
-                    first.grad = match first.value > 0.0 {
+                    first.grad += match first.value > 0.0 {
                         true => self.grad,
                         false => 0.0
                     };
@@ -202,6 +206,19 @@ impl Value {
             },
             Operation::NONE => {}
         }
+    }
+
+    fn needs_grad(&self, index: usize) -> bool {
+        return self.previous_nodes[index].borrow().needs_grad;
+    }
+
+    fn update_previous_node(&self, index: usize, value: f64) {
+        println!("update node {} {} {}", index, value, self.previous_nodes[index].borrow().id.value); 
+        self.previous_nodes[index].borrow_mut().grad += value;
+    }
+    
+    fn get_previous_value(&self, index: usize) -> f64 {
+        return self.previous_nodes[index].borrow().value;
     }
 }
 
@@ -241,19 +258,29 @@ impl Neuron {
         }
     }
 
-    fn zero_grad(self) {
-        for param in self.parameters {
+    fn zero_grad(&mut self) {
+        for param in self.parameters.iter_mut() {
             param.borrow_mut().grad = 0.0;
         }
     }
 
-    fn update(self, alpha: f64) {
-        for param in self.parameters {
-            param.borrow_mut().value -= param.borrow().grad * alpha;
+    fn update(&mut self, alpha: f64) {
+        for param in self.parameters.iter() {
+            if !param.borrow().needs_grad {
+                continue;
+            }
+            
+            let v = {
+                param.borrow().grad
+            };
+            let old_v = {param.borrow().value};
+            param.borrow_mut().value -= v * alpha;
+            let new_v = {param.borrow().value};
+            println!("update {} {} {}", v, old_v, new_v);
         }
     }
 
-    fn set(self, inputs: Vec<f64>) {
+    fn set(&mut self, inputs: Vec<f64>) {
         assert_eq!(inputs.len(), self.inputs.len());
 
         for (index, input) in inputs.iter().enumerate() {
@@ -284,20 +311,20 @@ impl Layer {
         }
     }
 
-    fn zero_grad(self) {
-        for neuron in self.neurons {
+    fn zero_grad(&mut self) {
+        for neuron in self.neurons.iter_mut() {
             neuron.zero_grad()
         }
     }
 
-    fn update(self, alpha: f64) {
-        for neuron in self.neurons {
+    fn update(&mut self, alpha: f64) {
+        for neuron in self.neurons.iter_mut() {
             neuron.update(alpha)
         }        
     }
 
-    fn set(self, inputs: Vec<f64>) {
-        for neuron in self.neurons {
+    fn set(&mut self, inputs: Vec<f64>) {
+        for neuron in self.neurons.iter_mut() {
             neuron.set(inputs.clone())
         }  
     }
@@ -326,16 +353,76 @@ impl MLP {
         }
     }
 
-    fn set(&self, inputs: Vec<f64>) {
+    fn set(&mut self, inputs: Vec<f64>) {
         self.layers[0].set(inputs);
+    }
+
+    fn outputs(&self) -> Vec<ValueRef> {
+        let mut last_layer: Vec<ValueRef> = vec![];
+        last_layer.reserve(self.layers[self.layers.len() - 1].outputs.len());
+        for output in self.layers[self.layers.len() - 1].outputs.iter() {
+            last_layer.push(output.clone());
+        }
+
+        return last_layer;
+    }
+
+    fn zero_grad(&mut self) {
+        for layer in self.layers.iter_mut() {
+            layer.zero_grad();
+        }
+    }
+
+    fn update(&mut self, alpha: f64) {
+        for layer in self.layers.iter_mut() {
+            layer.update(alpha);
+        }
     }
 }
 
 fn main() {
-    let net = MLP::new(vec![4,2,4], 4);
+    let mut net = MLP::new(vec![4,2,4], 4);
     // let layer = net.layers[0];
-    net.set(vec![1.0,0.0,0.0,-1.0]);
+    let values = vec![1.0,0.0,0.0,-1.0];
+    let alpha = 0.1;
+    net.set(values.clone());
+    let outputs = net.outputs();
 
+    let mut loss = Value::from(0.0);
+    for (index, output) in outputs.iter().enumerate() {
+        let tmp = Engine::pow(&Engine::add(output, &Engine::inv(&Value::from(values[index]))));
+        
+        loss = Engine::add(&loss, &tmp);
+    }
+    loss = Engine::mul(&loss, &Value::from(1.0 / values.len() as f64));
+    loss.borrow_mut().forward();
+    loss.borrow_mut().grad = 1.0;
+    println!("{}", loss.borrow().value);
+    net.zero_grad();
+    loss.borrow_mut().backward();
+    net.update(0.1);
+    
+    loss.borrow_mut().forward();
+    println!("{}", loss.borrow().value);
+    net.zero_grad();
+    loss.borrow_mut().backward();
+    net.update(0.1);
+    
+    loss.borrow_mut().forward();
+    println!("{}", loss.borrow().value);
+    net.zero_grad();
+    loss.borrow_mut().backward();
+    net.update(0.1);
+    
+    loss.borrow_mut().forward();
+    println!("{}", loss.borrow().value);
+    net.zero_grad();
+    loss.borrow_mut().backward();
+    net.update(0.1);
+    
+    loss.borrow_mut().forward();
+    println!("{}", loss.borrow().value);
+     
     /*let a = Value::from(1.0);
     a.borrow_mut().needs_grad = true;
     let b = Value::from(1.3);
