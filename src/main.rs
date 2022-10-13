@@ -410,7 +410,7 @@ impl MLP {
 }
 
 fn main() {
-    let mut net = MLP::new(vec![1,2,1],1);
+    let mut net = MLP::new(vec![1,1],1);
     // let layer = net.layers[0];
     let values = vec![1.0];//,0.0,0.0,-1.0];
     let alpha = 0.1;
@@ -431,7 +431,7 @@ fn main() {
     }
     println!("{}", loss.borrow().value);
 
-    for i in 0..5 {
+    for i in 0..3 {
         net.zero_grad();
         loss.borrow_mut().backward();
         net.update(alpha);
