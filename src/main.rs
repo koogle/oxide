@@ -1,6 +1,6 @@
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::collections::HashSet;
+use std::rc::Rc;
 //use std::time::SystemTime;
 use rand::Rng;
 use std::collections::VecDeque;
@@ -23,13 +23,17 @@ impl Default for Operation {
 
 impl fmt::Display for Operation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        return write!(f, "{}", match self {
-            Operation::ADD => "Add",
-            Operation::MUL => "Mul",
-            Operation::RELU => "Relu",
-            Operation::NONE => "None", 
-        }) 
-    } 
+        return write!(
+            f,
+            "{}",
+            match self {
+                Operation::ADD => "Add",
+                Operation::MUL => "Mul",
+                Operation::RELU => "Relu",
+                Operation::NONE => "None",
+            }
+        );
+    }
 }
 
 #[derive(Eq, Hash, PartialEq, Copy, Clone)]
@@ -40,16 +44,13 @@ struct Identifier {
 static mut COUNTER: u32 = 0;
 
 impl Default for Identifier {
-    fn default() -> Identifier  {
+    fn default() -> Identifier {
         unsafe {
             COUNTER += 1;
-            return Identifier  {
-                value: COUNTER,
-            }
+            return Identifier { value: COUNTER };
         }
     }
 }
-
 
 type ValueRef = Rc<RefCell<Value>>;
 
@@ -112,14 +113,13 @@ impl Engine {
     }
 
     fn inv(node: &ValueRef) -> ValueRef {
-       return Engine::mul(node, &Value::from(-1.0)); 
+        return Engine::mul(node, &Value::from(-1.0));
     }
 
     fn pow(node: &ValueRef) -> ValueRef {
-        return Engine::mul(node, node); 
+        return Engine::mul(node, node);
     }
 }
-
 
 impl Value {
     fn random() -> ValueRef {
@@ -132,7 +132,11 @@ impl Value {
         return Rc::new(RefCell::new(new_value));
     }
 
-    fn backward_recursive(&self, mut pointers: VecDeque<ValueRef>, mut visited: HashSet<Identifier>) -> (VecDeque<ValueRef>, HashSet<Identifier>) {
+    fn backward_recursive(
+        &self,
+        mut pointers: VecDeque<ValueRef>,
+        mut visited: HashSet<Identifier>,
+    ) -> (VecDeque<ValueRef>, HashSet<Identifier>) {
         if !visited.contains(&self.id) {
             visited.insert(self.id);
             for node in self.previous_nodes.iter() {
@@ -140,9 +144,8 @@ impl Value {
                 pointers.push_back(Rc::clone(node));
             }
         }
-        return (pointers, visited)
+        return (pointers, visited);
     }
-
 
     fn backward(&mut self) {
         // implement toplogical search
@@ -150,11 +153,11 @@ impl Value {
         self.update_previous();
         while pointers.len() > 0 {
             let node = pointers.pop_back();
-            
+
             match node {
                 Some(resolved) => {
                     resolved.borrow_mut().update_previous();
-                },
+                }
                 None => {}
             }
         }
@@ -162,33 +165,39 @@ impl Value {
 
     fn forward_step(&mut self) {
         self.color = String::from("forward");
-        
+        // remember to reset grads on forward pass
+        //if !self.needs_grad {
+        self.grad = 0.0;
+        //}
+
         match self.operation {
-            Operation::ADD => {        
-                self.value = self.previous_nodes[0].borrow().value + self.previous_nodes[1].borrow().value;
-            },
+            Operation::ADD => {
+                self.value =
+                    self.previous_nodes[0].borrow().value + self.previous_nodes[1].borrow().value;
+            }
             Operation::MUL => {
-                self.value = self.previous_nodes[0].borrow().value * self.previous_nodes[1].borrow().value;
-            },
+                self.value =
+                    self.previous_nodes[0].borrow().value * self.previous_nodes[1].borrow().value;
+            }
             Operation::RELU => {
                 self.value = match self.previous_nodes[0].borrow().value > 0.0 {
                     true => self.previous_nodes[0].borrow().value,
-                    false => 0.0
+                    false => 0.0,
                 };
-            },
+            }
             Operation::NONE => {}
-        } 
+        }
     }
 
     fn forward(&mut self) {
-        let (mut pointers, _) = self.backward_recursive(VecDeque::new(), HashSet::new()); 
+        let (mut pointers, _) = self.backward_recursive(VecDeque::new(), HashSet::new());
         while pointers.len() > 0 {
             let node = pointers.pop_front();
-            
+
             match node {
                 Some(resolved) => {
                     resolved.borrow_mut().forward_step();
-                },
+                }
                 None => {}
             }
         }
@@ -206,7 +215,7 @@ impl Value {
                 if self.needs_grad(1) {
                     self.update_previous_node(1, self.grad);
                 }
-            },
+            }
             Operation::MUL => {
                 if self.needs_grad(0) {
                     self.update_previous_node(0, self.get_previous_value(1) * self.grad);
@@ -214,16 +223,16 @@ impl Value {
                 if self.needs_grad(1) {
                     self.update_previous_node(1, self.get_previous_value(0) * self.grad);
                 }
-            },
+            }
             Operation::RELU => {
                 let mut first = self.previous_nodes[0].borrow_mut();
                 if first.needs_grad {
                     first.grad += match self.value > 0.0 {
                         true => self.grad,
-                        false => 0.0
+                        false => 0.0,
                     };
                 }
-            },
+            }
             Operation::NONE => {}
         }
     }
@@ -233,15 +242,19 @@ impl Value {
     }
 
     fn update_previous_node(&self, index: usize, value: f64) {
-        println!("update node id: {} index: {}, value: {}", self.previous_nodes[index].borrow().id.value, index, value); 
+        println!(
+            "update node id: {} index: {}, value: {}",
+            self.previous_nodes[index].borrow().id.value,
+            index,
+            value
+        );
         self.previous_nodes[index].borrow_mut().grad += value;
     }
-    
+
     fn get_previous_value(&self, index: usize) -> f64 {
         return self.previous_nodes[index].borrow().value;
     }
 }
-
 
 // Neuron class
 struct Neuron {
@@ -261,21 +274,24 @@ impl Neuron {
         for input in inputs {
             input_refs.push(input.clone());
         }
-        
+
         for parameter in parameters.iter() {
             parameter.borrow_mut().needs_grad = true;
         }
 
         let mut output: ValueRef = parameters[0].clone();
         for index in 0..size {
-            output = Engine::add(&output, &Engine::mul(&parameters[index + 1], &input_refs[index]));
+            output = Engine::add(
+                &output,
+                &Engine::mul(&parameters[index + 1], &input_refs[index]),
+            );
         }
-        
+
         return Neuron {
             parameters,
             inputs: input_refs,
-            output: Engine::relu(&output)
-        }
+            output: Engine::relu(&output),
+        };
     }
 
     fn zero_grad(&self) {
@@ -290,21 +306,18 @@ impl Neuron {
             if !param.borrow().needs_grad {
                 continue;
             }
-            
-            let v = {
-                param.borrow().grad
-            };
-            let c = {
-                param.borrow().color.clone()
-            };
-            let id = {
-                param.borrow().id
-            };
-            
-            let old_v = {param.borrow().value};
+
+            let v = { param.borrow().grad };
+            let c = { param.borrow().color.clone() };
+            let id = { param.borrow().id };
+
+            let old_v = { param.borrow().value };
             param.borrow_mut().value -= v * alpha;
-            let new_v = {param.borrow().value};
-            println!("{} color: {} grad: {} old: {} new: {}", id.value, c, v, old_v, new_v);
+            let new_v = { param.borrow().value };
+            println!(
+                "{} color: {} grad: {} old: {} new: {}",
+                id.value, c, v, old_v, new_v
+            );
         }
     }
 
@@ -325,7 +338,9 @@ struct Layer {
 
 impl Layer {
     fn new(n_neurons: usize, inputs: &Vec<ValueRef>) -> Layer {
-        let neurons: Vec<Neuron> = (0..n_neurons).map(|_| Neuron::new(&inputs.clone())).collect();
+        let neurons: Vec<Neuron> = (0..n_neurons)
+            .map(|_| Neuron::new(&inputs.clone()))
+            .collect();
         let mut outputs: Vec<ValueRef> = vec![];
         outputs.reserve(n_neurons);
 
@@ -333,10 +348,7 @@ impl Layer {
             outputs.push(neuron.output.clone());
         }
 
-        return Layer {
-            neurons,
-            outputs
-        }
+        return Layer { neurons, outputs };
     }
 
     fn zero_grad(&self) {
@@ -348,19 +360,19 @@ impl Layer {
     fn update(&self, alpha: f64) {
         for neuron in self.neurons.iter() {
             neuron.update(alpha)
-        }        
+        }
     }
 
     fn set(&self, inputs: Vec<f64>) {
         for neuron in self.neurons.iter() {
             neuron.set(inputs.clone())
-        }  
+        }
     }
 }
 
 struct MLP {
     layers: Vec<Layer>,
-    inputs: Vec<ValueRef>
+    inputs: Vec<ValueRef>,
 }
 
 impl MLP {
@@ -375,10 +387,7 @@ impl MLP {
             output = &layers[index].outputs;
         }
 
-        return MLP {
-            layers,
-            inputs
-        }
+        return MLP { layers, inputs };
     }
 
     fn set(&mut self, inputs: Vec<f64>) {
@@ -410,17 +419,20 @@ impl MLP {
 }
 
 fn main() {
-    let mut net = MLP::new(vec![1,1],1);
+    let mut net = MLP::new(vec![4, 6, 4], 4);
     // let layer = net.layers[0];
-    let values = vec![1.0];//,0.0,0.0,-1.0];
+    let values = vec![1.0, 0.0,0.0,1.0];
     let alpha = 0.1;
     net.set(values.clone());
     let outputs = net.outputs();
 
     let mut loss = Value::from(0.0);
     for (index, output) in outputs.iter().enumerate() {
-        let tmp = Engine::pow(&Engine::add(output, &Engine::inv(&Value::from(values[index]))));
-        
+        let tmp = Engine::pow(&Engine::add(
+            output,
+            &Engine::inv(&Value::from(values[index])),
+        ));
+
         loss = Engine::add(&loss, &tmp);
     }
     loss = Engine::mul(&loss, &Value::from(1.0 / values.len() as f64));
@@ -431,27 +443,28 @@ fn main() {
     }
     println!("{}", loss.borrow().value);
 
-    for i in 0..3 {
+    for i in 0..200 {
         net.zero_grad();
+        loss.borrow_mut().grad = 1.0;
         loss.borrow_mut().backward();
         net.update(alpha);
         loss.borrow_mut().forward();
+        
 
         let final_o = net.outputs();
         for (index, o) in final_o.iter().enumerate() {
             println!("{}: {}", index, o.borrow().value);
         }
 
-
         /*for v in loss.borrow().previous_nodes.iter() {
             println!("> {} {}", v.borrow().value, v.borrow().operation);
             for v2 in v.borrow().previous_nodes.iter() {
                 println!(">> {} {}", v2.borrow().value, v2.borrow().operation);
-            }    
+            }
         }*/
         println!("Loss after epoch{}: {}", i, loss.borrow().value);
     }
-    
+
     /*if loss.borrow().value == 0.5 {
         let final_o = net.outputs();
         for (index, o) in final_o.iter().enumerate() {
@@ -470,30 +483,24 @@ fn main() {
     // println!("Hello, world!");
 }
 
-
-
 // Outdated code to be removed later
 
-
-    /*fn relu(self) -> (Value, ValueRef) {
-        let value = match self.value > 0.0 {
-            true => self.value,
-            false => 0.0,
-        };
-        let self_ref = Rc::new(RefCell::new(self));
-        let output = Value {
-            value: value,
-            needs_grad: true,
-            operation: Operation::RELU,
-            grad: 0.0,
-            previous_nodes: vec![Rc::clone(&self_ref)],
-            id: Identifier::default()
-        };
-        return (output, self_ref);
-    }*/
-    
-
-
+/*fn relu(self) -> (Value, ValueRef) {
+    let value = match self.value > 0.0 {
+        true => self.value,
+        false => 0.0,
+    };
+    let self_ref = Rc::new(RefCell::new(self));
+    let output = Value {
+        value: value,
+        needs_grad: true,
+        operation: Operation::RELU,
+        grad: 0.0,
+        previous_nodes: vec![Rc::clone(&self_ref)],
+        id: Identifier::default()
+    };
+    return (output, self_ref);
+}*/
 
 /*fn combine_with_refs(left: Value, right: Value, new_value: f64, operation: Operation) -> (Value, ValueRef, ValueRef) {
     let l_ref = Rc::new(RefCell::new(left));
@@ -524,7 +531,7 @@ impl Add<f64> for Value {
 
     fn add(self, other: f64) -> (Value, ValueRef) {
         let new_value = self.value + other;
-        let (out, l_ref, _) =  combine_with_refs(self, Value::from(other), new_value, Operation::ADD); 
+        let (out, l_ref, _) =  combine_with_refs(self, Value::from(other), new_value, Operation::ADD);
         return (out, l_ref);
     }
 }
@@ -543,7 +550,7 @@ impl Mul<f64> for Value {
 
     fn mul(self, other: f64) -> (Value, ValueRef) {
         let new_value = self.value * other;
-        let (out, l_ref, _) =  combine_with_refs(self, Value::from(other), new_value, Operation::MUL); 
+        let (out, l_ref, _) =  combine_with_refs(self, Value::from(other), new_value, Operation::MUL);
         return (out, l_ref);
     }
 }*/
