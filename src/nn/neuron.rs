@@ -12,7 +12,6 @@ pub struct Neuron {
 impl Neuron {
     pub fn new(inputs: &Vec<ValueRef>) -> Neuron {
         let size = inputs.len();
-        // let mut inputs: Vec <ValueRef> = (1..size).map(|_x| Value::from(0.0)).collect();
         let parameters: Vec<ValueRef> = (0..(size + 1)).map(|_x| Value::random()).collect();
         let mut input_refs: Vec<ValueRef> = vec![];
         input_refs.reserve(inputs.len());
