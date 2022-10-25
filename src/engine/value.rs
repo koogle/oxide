@@ -1,14 +1,17 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::collections::VecDeque;
-use std::collections::HashSet;
 use rand::Rng;
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
+use std::cell::RefCell;
+use std::collections::HashSet;
+use std::collections::VecDeque;
+use std::rc::Rc;
+use std::sync::atomic::AtomicU64;
 
-use crate::engine::operation::Operation;
 use crate::engine::id::Identifier;
-
+use crate::engine::operation::Operation;
 
 pub type ValueRef = Rc<RefCell<Value>>;
+pub static VALUE_RANDOM_SEED: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Default)]
 pub struct Value {
@@ -24,7 +27,16 @@ pub struct Value {
 
 impl Value {
     pub fn random() -> ValueRef {
-        return Value::from(rand::thread_rng().gen_range(0.0..1.0));
+        if VALUE_RANDOM_SEED.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+            return Value::from(rand::thread_rng().gen_range(0.0..1.0));
+        } else {
+            return Value::from(
+                ChaCha8Rng::seed_from_u64(
+                    VALUE_RANDOM_SEED.load(std::sync::atomic::Ordering::Relaxed),
+                )
+                .gen_range(0.0..1.0),
+            );
+        }
     }
 
     pub fn from(value: f64) -> ValueRef {
@@ -51,7 +63,7 @@ impl Value {
     pub fn backward(&mut self) {
         // implement toplogical search
         let (mut pointers, _) = self.backward_recursive(VecDeque::new(), HashSet::new());
-   
+
         // flush grads if necessary
         for pointer in pointers.iter_mut() {
             pointer.borrow_mut().propagate_zero_grad();
@@ -89,7 +101,7 @@ impl Value {
 
     pub fn forward(&mut self) {
         let (mut pointers, _) = self.backward_recursive(VecDeque::new(), HashSet::new());
-        
+
         for pointer in pointers.iter_mut() {
             pointer.borrow_mut().forward_step();
         }
