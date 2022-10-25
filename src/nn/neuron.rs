@@ -41,7 +41,7 @@ impl Neuron {
 
     pub fn zero_grad(&self) {
         for param in self.parameters.iter() {
-            param.borrow_mut().grad = 0.0;
+            param.borrow_mut().zero_grad();
             param.borrow_mut().color = String::from("");
         }
     }

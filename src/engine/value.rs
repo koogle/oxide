@@ -19,6 +19,7 @@ pub struct Value {
     pub operation: Operation,
     pub previous_nodes: Vec<ValueRef>,
     pub color: String,
+    pub has_been_reset: bool,
 }
 
 impl Value {
@@ -50,12 +51,21 @@ impl Value {
     pub fn backward(&mut self) {
         // implement toplogical search
         let (mut pointers, _) = self.backward_recursive(VecDeque::new(), HashSet::new());
+   
+        // flush grads if necessary
+        for pointer in pointers.iter_mut() {
+            pointer.borrow_mut().propagate_zero_grad();
+        }
+
         self.update_previous();
+
+        //for pointer in pointers.reve
         while pointers.len() > 0 {
             let node = pointers.pop_back();
 
             match node {
                 Some(resolved) => {
+                    resolved.borrow_mut().has_been_reset = false;
                     resolved.borrow_mut().update_previous();
                 }
                 None => {}
@@ -67,7 +77,7 @@ impl Value {
         self.color = String::from("forward");
         // remember to reset grads on forward pass
         //if !self.needs_grad {
-        self.grad = 0.0;
+        // self.grad = 0.0;
         //}
 
         match self.operation {
@@ -147,5 +157,23 @@ impl Value {
 
     fn get_previous_value(&self, index: usize) -> f64 {
         return self.previous_nodes[index].borrow().value;
+    }
+
+    pub fn zero_grad(&mut self) {
+        self.grad = 0.0;
+        self.has_been_reset = true;
+    }
+
+    fn propagate_zero_grad(&mut self) {
+        let mut needs_reset = false;
+        for previous in self.previous_nodes.iter() {
+            if previous.borrow().has_been_reset {
+                needs_reset = true;
+            }
+        }
+        if needs_reset {
+            self.grad = 0.0;
+            self.has_been_reset = true;
+        }
     }
 }

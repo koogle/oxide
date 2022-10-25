@@ -4,7 +4,6 @@ use crate::nn::Layer;
 
 pub struct MLP {
     layers: Vec<Layer>,
-    inputs: Vec<ValueRef>,
 }
 
 impl MLP {
@@ -19,7 +18,7 @@ impl MLP {
             output = &layers[index].outputs;
         }
 
-        return MLP { layers, inputs };
+        return MLP { layers };
     }
 
     pub fn set(&mut self, inputs: Vec<f64>) {
@@ -43,7 +42,7 @@ impl MLP {
     }
 
     pub fn update(&self, alpha: f64) {
-        for (index, layer) in self.layers.iter().enumerate() {
+        for layer in self.layers.iter() {
             layer.update(alpha);
         }
     }
