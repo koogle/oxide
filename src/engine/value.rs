@@ -59,26 +59,14 @@ impl Value {
 
         self.update_previous();
 
-        //for pointer in pointers.reve
-        while pointers.len() > 0 {
-            let node = pointers.pop_back();
-
-            match node {
-                Some(resolved) => {
-                    resolved.borrow_mut().has_been_reset = false;
-                    resolved.borrow_mut().update_previous();
-                }
-                None => {}
-            }
+        for pointer in pointers.iter_mut().rev() {
+            pointer.borrow_mut().has_been_reset = false;
+            pointer.borrow_mut().update_previous();
         }
     }
 
     fn forward_step(&mut self) {
         self.color = String::from("forward");
-        // remember to reset grads on forward pass
-        //if !self.needs_grad {
-        // self.grad = 0.0;
-        //}
 
         match self.operation {
             Operation::ADD => {
@@ -101,15 +89,9 @@ impl Value {
 
     pub fn forward(&mut self) {
         let (mut pointers, _) = self.backward_recursive(VecDeque::new(), HashSet::new());
-        while pointers.len() > 0 {
-            let node = pointers.pop_front();
-
-            match node {
-                Some(resolved) => {
-                    resolved.borrow_mut().forward_step();
-                }
-                None => {}
-            }
+        
+        for pointer in pointers.iter_mut() {
+            pointer.borrow_mut().forward_step();
         }
         self.forward_step();
     }
