@@ -1,4 +1,4 @@
-# Minmal neural net in Rust
+# Minimal neural net in Rust
 
 ![image](https://user-images.githubusercontent.com/6087389/198004793-3a02eaa0-4b18-4666-a56e-5624000a7e76.png)
 
