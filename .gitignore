@@ -1,4 +1,4 @@
 /target
-/mnist/data
+/src/mnist/data
 .DS_Store
 /src/.DS_Store
