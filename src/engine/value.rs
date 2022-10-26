@@ -21,7 +21,6 @@ pub struct Value {
     pub id: Identifier,
     pub operation: Operation,
     pub previous_nodes: Vec<ValueRef>,
-    pub color: String,
     pub has_been_reset: bool,
 }
 
@@ -78,8 +77,6 @@ impl Value {
     }
 
     fn forward_step(&mut self) {
-        self.color = String::from("forward");
-
         match self.operation {
             Operation::ADD => {
                 self.value =
@@ -109,8 +106,6 @@ impl Value {
     }
 
     fn update_previous(&mut self) {
-        self.color = String::from("backward");
-
         match self.operation {
             Operation::ADD => {
                 if self.needs_grad(0) {

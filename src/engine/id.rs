@@ -1,15 +1,16 @@
+use std::sync::atomic::AtomicU32;
+
 #[derive(Eq, Hash, PartialEq, Copy, Clone)]
 pub struct Identifier {
     pub value: u32,
 }
 
-static mut COUNTER: u32 = 0;
+static COUNTER: AtomicU32 = AtomicU32::new(0);
 
 impl Default for Identifier {
     fn default() -> Identifier {
-        unsafe {
-            COUNTER += 1;
-            return Identifier { value: COUNTER };
-        }
+        COUNTER.store(COUNTER.load(std::sync::atomic::Ordering::Relaxed) + 1, std::sync::atomic::Ordering::Relaxed);
+
+        return Identifier { value: COUNTER.load(std::sync::atomic::Ordering::Relaxed) };
     }
 }

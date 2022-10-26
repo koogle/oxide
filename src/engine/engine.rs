@@ -17,7 +17,6 @@ impl Engine {
             grad: 0.0,
             previous_nodes: vec![Rc::clone(&left), Rc::clone(&right)],
             id: Identifier::default(),
-            color: String::default(),
             has_been_reset: false,
         };
         return Rc::new(RefCell::new(v));
@@ -31,7 +30,6 @@ impl Engine {
             grad: 0.0,
             previous_nodes: vec![Rc::clone(&left), Rc::clone(&right)],
             id: Identifier::default(),
-            color: String::default(),
             has_been_reset: false,
         };
         return Rc::new(RefCell::new(v));
@@ -50,7 +48,6 @@ impl Engine {
             grad: 0.0,
             previous_nodes: vec![Rc::clone(&node)],
             id: Identifier::default(),
-            color: String::default(),
             has_been_reset: false,
         };
         return Rc::new(RefCell::new(v));
