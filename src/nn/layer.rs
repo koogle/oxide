@@ -7,9 +7,9 @@ pub struct Layer {
 }
 
 impl Layer {
-    pub fn new(n_neurons: usize, inputs: &Vec<ValueRef>) -> Layer {
+    pub fn new(n_neurons: usize, inputs: &Vec<ValueRef>, linear: bool) -> Layer {
         let neurons: Vec<Neuron> = (0..n_neurons)
-            .map(|_| Neuron::new(&inputs.clone()))
+            .map(|_| Neuron::new(&inputs.clone(), linear))
             .collect();
         let mut outputs: Vec<ValueRef> = vec![];
         outputs.reserve(n_neurons);

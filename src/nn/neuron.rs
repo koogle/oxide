@@ -1,7 +1,6 @@
-use crate::engine::ValueRef;
-use crate::engine::Value;
 use crate::engine::Engine;
- 
+use crate::engine::Value;
+use crate::engine::ValueRef;
 
 pub struct Neuron {
     parameters: Vec<ValueRef>,
@@ -10,7 +9,7 @@ pub struct Neuron {
 }
 
 impl Neuron {
-    pub fn new(inputs: &Vec<ValueRef>) -> Neuron {
+    pub fn new(inputs: &Vec<ValueRef>, linear: bool) -> Neuron {
         let size = inputs.len();
         let parameters: Vec<ValueRef> = (0..(size + 1)).map(|_x| Value::random()).collect();
         let mut input_refs: Vec<ValueRef> = vec![];
@@ -35,7 +34,11 @@ impl Neuron {
         return Neuron {
             parameters,
             inputs: input_refs,
-            output: Engine::relu(&output),
+            output: if linear {
+                output
+            } else {
+                Engine::relu(&output)
+            },
         };
     }
 

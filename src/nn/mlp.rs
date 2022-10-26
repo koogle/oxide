@@ -1,5 +1,5 @@
-use crate::engine::ValueRef;
 use crate::engine::Value;
+use crate::engine::ValueRef;
 use crate::nn::Layer;
 
 pub struct MLP {
@@ -7,13 +7,13 @@ pub struct MLP {
 }
 
 impl MLP {
-    pub fn new(sizes: Vec<usize>, input_size: usize) -> MLP {
+    pub fn new(sizes: Vec<usize>, linear_config: Vec<bool>, input_size: usize) -> MLP {
         let mut layers: Vec<Layer> = vec![];
         layers.reserve(sizes.len());
         let inputs: Vec<ValueRef> = (0..input_size).map(|_x| Value::from(0.0)).collect();
         let mut output: &Vec<ValueRef> = &inputs;
         for (index, size) in sizes.iter().enumerate() {
-            let layer = Layer::new(*size, output);
+            let layer = Layer::new(*size, output, linear_config[index]);
             layers.push(layer);
             output = &layers[index].outputs;
         }
@@ -50,17 +50,17 @@ impl MLP {
 
 #[cfg(test)]
 mod test {
+    use super::*;
+    use crate::engine::Engine;
     use crate::engine::Value;
     use crate::engine::VALUE_RANDOM_SEED;
-    use crate::engine::Engine;
-    use super::*;
 
     #[test]
     fn test_mlp() {
         VALUE_RANDOM_SEED.store(1, std::sync::atomic::Ordering::Relaxed);
 
-        let mut net = MLP::new(vec![4, 6, 4], 4);
-        let values = vec![1.0, 0.0,0.0,1.0];
+        let mut net = MLP::new(vec![4, 6, 4], vec![false, false, true], 4);
+        let values = vec![1.0, 0.0, 0.0, -2.0];
         let alpha = 0.01;
         net.set(values.clone());
         let outputs = net.outputs();
@@ -86,7 +86,6 @@ mod test {
             loss.borrow_mut().forward();
         }
         println!("{}", loss.borrow().value);
-        assert!(loss.borrow().value < 1e-10);
+        assert!(loss.borrow().value < 1e-8);
     }
-
 }
