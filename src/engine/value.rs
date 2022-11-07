@@ -22,6 +22,7 @@ pub struct Value {
     pub operation: Operation,
     pub previous_nodes: Vec<ValueRef>,
     pub has_been_reset: bool,
+    pub backward_graph: VecDeque<ValueRef>,
 }
 
 impl Value {
@@ -61,16 +62,17 @@ impl Value {
 
     pub fn backward(&mut self) {
         // implement toplogical search
-        let (mut pointers, _) = self.backward_recursive(VecDeque::new(), HashSet::new());
-
-        // flush grads if necessary
-        for pointer in pointers.iter_mut() {
-            pointer.borrow_mut().propagate_zero_grad();
+        if self.backward_graph.len() == 0 {
+            (self.backward_graph, _) = self.backward_recursive(VecDeque::new(), HashSet::new());
         }
 
+        // flush grads if necessary
+        for pointer in self.backward_graph.iter_mut() {
+            pointer.borrow_mut().propagate_zero_grad();
+        }
         self.update_previous();
 
-        for pointer in pointers.iter_mut().rev() {
+        for pointer in self.backward_graph.iter_mut().rev() {
             pointer.borrow_mut().has_been_reset = false;
             pointer.borrow_mut().update_previous();
         }
@@ -97,9 +99,11 @@ impl Value {
     }
 
     pub fn forward(&mut self) {
-        let (mut pointers, _) = self.backward_recursive(VecDeque::new(), HashSet::new());
+        if self.backward_graph.len() == 0 {
+            (self.backward_graph, _) = self.backward_recursive(VecDeque::new(), HashSet::new());
+        }
 
-        for pointer in pointers.iter_mut() {
+        for pointer in self.backward_graph.iter_mut() {
             pointer.borrow_mut().forward_step();
         }
         self.forward_step();

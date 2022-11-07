@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::collections::VecDeque;
 
 use crate::engine::value::ValueRef;
 use crate::engine::value::Value;
@@ -18,6 +19,7 @@ impl Engine {
             previous_nodes: vec![Rc::clone(&left), Rc::clone(&right)],
             id: Identifier::default(),
             has_been_reset: false,
+            backward_graph: VecDeque::new(),
         };
         return Rc::new(RefCell::new(v));
     }
@@ -31,6 +33,7 @@ impl Engine {
             previous_nodes: vec![Rc::clone(&left), Rc::clone(&right)],
             id: Identifier::default(),
             has_been_reset: false,
+            backward_graph: VecDeque::new(),
         };
         return Rc::new(RefCell::new(v));
     }
@@ -49,6 +52,7 @@ impl Engine {
             previous_nodes: vec![Rc::clone(&node)],
             id: Identifier::default(),
             has_been_reset: false,
+            backward_graph: VecDeque::new(),
         };
         return Rc::new(RefCell::new(v));
     }

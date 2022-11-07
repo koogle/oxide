@@ -8,7 +8,6 @@ use engine::Engine;
 
 
 fn main() {
-    // mnist::read_mnist_labels();
     let mut net = MLP::new(vec![4, 6, 4], vec![false, false, true], 4);
     let values = vec![1.0, 0.0, 0.0, -2.0];
     let alpha = 0.01;
