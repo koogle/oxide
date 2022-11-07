@@ -120,7 +120,6 @@ fn one_hot_encoding(label: u8) -> Vec<f64> {
     return out;
 }
 
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -136,32 +135,30 @@ mod test {
         );
         let alpha = 0.01;
         let outputs = mlp.outputs();
-        
-        let image_index = 0;
 
-        mlp.set(to_f64(images[image_index].pixels.clone()));
-        let y_hat = one_hot_encoding(images[image_index].label);
-        
-        let mut loss = Value::from(0.0);
-        for (index, output) in outputs.iter().enumerate() {
-            let tmp = Engine::pow(&Engine::add(
-                output,
-                &Engine::inv(&Value::from(y_hat[index])),
-            ));
-    
-            loss = Engine::add(&loss, &tmp);
-        }
-        loss = Engine::mul(&loss, &Value::from(1.0 / y_hat.len() as f64));
-        loss.borrow_mut().forward();
-        loss.borrow_mut().grad = 1.0;
+        for image_index in 0..60000 {
+            mlp.set(to_f64(images[image_index].pixels.clone()));
+            let y_hat = one_hot_encoding(images[image_index].label);
 
-        for _ in 0..1000 {
-            //mlp.zero_grad();
-            //loss.borrow_mut().grad = 1.0;
-            loss.borrow_mut().backward();
-            //mlp.update(alpha);
+            let mut loss = Value::from(0.0);
+            for (index, output) in outputs.iter().enumerate() {
+                let tmp = Engine::pow(&Engine::add(
+                    output,
+                    &Engine::inv(&Value::from(y_hat[index])),
+                ));
+
+                loss = Engine::add(&loss, &tmp);
+            }
+            loss = Engine::mul(&loss, &Value::from(1.0 / y_hat.len() as f64));
+            println!("{} {}", image_index, loss.borrow().value);
             loss.borrow_mut().forward();
-            println!("{}", loss.borrow().value);
+            loss.borrow_mut().grad = 1.0;
+
+            mlp.zero_grad();
+            loss.borrow_mut().grad = 1.0;
+            loss.borrow_mut().backward();
+            mlp.update(alpha);
+            //loss.borrow_mut().forward();
         }
     }
 }
